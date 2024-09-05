@@ -10,15 +10,16 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { error } from 'console';
 import { signIn } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import GithubSignInButton from '../github-auth-button';
 
 const formSchema = z.object({
-  email: z.string().email({ message: 'Enter a valid email address' })
+  mobile_number: z.string().min(10, { message: 'Enter a valid mobile number' }),
+  otp: z.string().optional() // OTP is optional initially
 });
 
 type UserFormValue = z.infer<typeof formSchema>;
@@ -27,19 +28,52 @@ export default function UserAuthForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl');
   const [loading, setLoading] = useState(false);
-  const defaultValues = {
-    email: 'demo@gmail.com'
-  };
+  const [otpRequested, setOtpRequested] = useState(false);
+
   const form = useForm<UserFormValue>({
     resolver: zodResolver(formSchema),
-    defaultValues
+    defaultValues: { mobile_number: '', otp: '' }
   });
 
   const onSubmit = async (data: UserFormValue) => {
-    signIn('credentials', {
-      email: data.email,
-      callbackUrl: callbackUrl ?? '/dashboard'
-    });
+    setLoading(true);
+
+    if (!otpRequested) {
+      // Request OTP
+      const result = await signIn('credentials', {
+        mobile_number: data.mobile_number,
+        redirect: false
+      });
+
+      if (result?.error) {
+        console.log('error');
+        console.log(result?.error);
+
+        form.setError('mobile_number', {
+          type: 'manual',
+          message: result.error
+        });
+      } else {
+        console.log('sucess');
+        setOtpRequested(true);
+      }
+    } else {
+      // Verify OTP
+      console.log('otp');
+
+      const result = await signIn('credentials', {
+        mobile_number: data.mobile_number,
+        otp: data.otp,
+        callbackUrl: callbackUrl ?? '/dashboard'
+        // redirect: true
+      });
+
+      if (result?.error) {
+        form.setError('otp', { type: 'manual', message: result.error });
+      }
+    }
+
+    setLoading(false);
   };
 
   return (
@@ -51,15 +85,15 @@ export default function UserAuthForm() {
         >
           <FormField
             control={form.control}
-            name="email"
+            name="mobile_number"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>Mobile</FormLabel>
                 <FormControl>
                   <Input
-                    type="email"
-                    placeholder="Enter your email..."
-                    disabled={loading}
+                    type="text"
+                    placeholder="Enter your mobile number..."
+                    disabled={loading || otpRequested}
                     {...field}
                   />
                 </FormControl>
@@ -68,22 +102,32 @@ export default function UserAuthForm() {
             )}
           />
 
+          {otpRequested && (
+            <FormField
+              control={form.control}
+              name="otp"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>OTP</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="text"
+                      placeholder="Enter the OTP..."
+                      disabled={loading}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+
           <Button disabled={loading} className="ml-auto w-full" type="submit">
-            Continue With Email
+            {otpRequested ? 'Verify OTP' : 'Request OTP'}
           </Button>
         </form>
       </Form>
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">
-            Or continue with
-          </span>
-        </div>
-      </div>
-      <GithubSignInButton />
     </>
   );
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useSession, signOut, getCsrfToken } from 'next-auth/react';
 
 import { Icons } from '@/components/icons';
 import { cn } from '@/lib/utils';
@@ -27,10 +28,53 @@ export function DashboardNav({
   isMobileNav = false
 }: DashboardNavProps) {
   const path = usePathname();
+  const router = useRouter();
   const { isMinimized } = useSidebar();
+  const { data: session } = useSession();
 
   if (!items?.length) {
     return null;
+  }
+
+  // async function handleLogout() {
+  //   console.log('logout...');
+
+  //   const csrfToken = await getCsrfToken();
+  //   console.log('csrfToken: ' + csrfToken);
+
+  //   try {
+  //     // Call the server-side proxy
+  //     console.log('logging out try field...');
+
+  //     const response = await fetch('/api/auth/signout', {
+  //       method: 'POST',
+  //       headers: {
+  //         'X-CSRF-Token': '31352e77dafa7d8f74e060ab4348bd8077672ade74fc8aba7fc06c8697179ce7%7C00178523f630cf6a2210631bb70ef8d69153da6a4ff89e1bdad60d3ba5ba215a',
+  //       },
+  //     });
+
+  //     const data = await response.json();
+
+  //     if (!response.ok) {
+  //       throw new Error(`Failed to logout from external service: ${data.error}`);
+  //     }
+
+  //     // Proceed with signing out from next-auth
+  //     await signOut({ redirect: false }); // Do not redirect, handle it manually
+  //     router.push('/'); // Redirect after sign-out
+  //   } catch (error) {
+  //     console.error('Failed to log out:', error);
+  //   }
+  // }
+
+  async function handleLogout() {
+    console.log('logout...');
+    try {
+      await signOut({ redirect: false }); // Do not redirect, handle it manually
+      router.push('/'); // Redirect after sign-out
+    } catch (error) {
+      console.error('Failed to log out:', error);
+    }
   }
 
   console.log('isActive', isMobileNav, isMinimized);
@@ -53,6 +97,9 @@ export function DashboardNav({
                     )}
                     onClick={() => {
                       if (setOpen) setOpen(false);
+                      if (item.title === 'Logout') {
+                        handleLogout();
+                      }
                     }}
                   >
                     <Icon className={`ml-3 size-5 flex-none`} />
